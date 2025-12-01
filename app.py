@@ -4,10 +4,9 @@ import random
 import requests
 from bs4 import BeautifulSoup
 
-# 페이지 설정
-st.set_page_config(page_title="블로그 AI: 인간적인 도입부 적용", page_icon="🗣️", layout="wide")
+st.set_page_config(page_title="블로그 AI: 포토 디렉터 모드", page_icon="📸", layout="wide")
 
-# --- [기능 1] 네이버 블로그 스크래핑 ---
+# --- 기존 함수들 (그대로 유지) ---
 def scrape_naver_blogs(urls_text):
     if not urls_text: return ""
     url_list = [url.strip() for url in urls_text.split('\n') if url.strip()][:5]
@@ -18,53 +17,59 @@ def scrape_naver_blogs(urls_text):
             headers = {'User-Agent': 'Mozilla/5.0'}
             response = requests.get(url, headers=headers, timeout=5)
             soup = BeautifulSoup(response.text, 'html.parser')
-            text = soup.get_text(separator=' ', strip=True)
-            if len(text) > 800: text = text[:800] + "..."
+            text = soup.get_text(separator=' ', strip=True)[:800]
             combined_content += f"\n[참고{i+1}]: {text}\n"
         except: pass
     return combined_content
 
-# --- [기능 2] 글 전개 패턴 (구조) ---
 def get_structure_pattern():
     patterns = [
-        "A타입 (직설형): 결론(완료 사진)부터 보여주고, 역순으로 과정 풀기",
-        "B타입 (스토리형): 현장의 문제 상황 묘사로 시작해 해결하는 과정",
-        "C타입 (비교형): 작업 전(Before) vs 후(After) 비교 위주",
-        "D타입 (정보형): 기술적 원리와 관리 팁을 섞어서 설명"
+        "A타입: 결과물 사진부터 '똬!' 보여주고 시작하기",
+        "B타입: 현장의 답답했던 문제 상황 묘사로 시작하기",
+        "C타입: 작업 전(Before)과 후(After)를 확실하게 비교하기",
+        "D타입: 기술적 원리를 하나하나 짚어주는 전문가 스타일"
     ]
     return random.choice(patterns)
 
-# --- [기능 3] ★도입부(인사말) 스타일 랜덤 생성 (NEW)★ ---
 def get_intro_style():
     intros = [
-        "1. 날씨/계절형: '날씨가 갑자기 추워져서 그런지...' 처럼 날씨 얘기로 자연스럽게 시작 (안녕하세요 금지)",
-        "2. 현장상황형: '아침 9시부터 다급한 전화를 받고 달려갔습니다' 처럼 긴박하게 시작",
-        "3. 질문형: '왜 꼭 급할 때만 장비가 말썽일까요?' 라고 독자에게 질문하며 시작",
-        "4. 팩트형: 인사 생략하고 '오늘 현장은 OO동의 엘리베이터 없는 3층입니다' 라고 담백하게 시작"
+        "1. 날씨/계절형: 날씨 얘기로 자연스럽게 시작 (안녕하세요 금지)",
+        "2. 현장상황형: 다급한 전화나 긴박한 상황 묘사로 시작",
+        "3. 질문형: 독자에게 질문을 던지며 시작",
+        "4. 팩트형: 인사 생략하고 장소와 장비 설명으로 바로 진입"
     ]
     return random.choice(intros)
 
-# --- [기능 4] 글 길이 지침 ---
-def get_length_instruction(length_option):
-    if length_option == "짧게": return "핵심만 간단히 1,000자 내외."
-    elif length_option == "보통": return "에피소드 포함 1,500자 이상."
-    else: return "관리꿀팁, FAQ 포함 2,500자 이상 아주 길게."
+# --- [NEW] 사진 지시사항 생성 함수 ---
+def generate_photo_instructions(photo_list):
+    if not photo_list:
+        return "특별한 사진 지시사항 없음. 일반적인 흐름대로 작성해."
+    
+    instructions = "\n# 📸 [사진 배치 및 묘사 가이드] (매우 중요)\n"
+    instructions += "내가 이 프롬프트와 함께 **실제 사진들을 업로드**할 거야. 각 사진을 설명할 때 아래 포인트를 꼭 살려서 묘사해줘.\n"
+    
+    for i, item in enumerate(photo_list):
+        instructions += f"""
+    - **[사진 {i+1}]: {item['name']}**
+      👉 묘사 포인트: "{item['desc']}"
+      (이 내용을 바탕으로 독자가 사진을 뚫어지게 쳐다보게끔 생생하게 표현해줘.)
+        """
+    return instructions
 
-# --- [기능 5] 프롬프트 생성 (도입부 로직 강화) ---
-def generate_pro_prompt(category, equipment, location, work_detail, urgency, length_option, contact_info, ref_content):
+# --- 최종 프롬프트 생성 ---
+def generate_pro_prompt(category, equipment, location, work_detail, urgency, length_option, contact_info, ref_content, photo_instructions):
     
     pattern = get_structure_pattern()
     intro_style = get_intro_style()
-    length_instruction = get_length_instruction(length_option)
     
-    ref_section = ""
-    if ref_content:
-        ref_section = f"\n# [참고 자료]\n(아래 내용을 참고하되 문장은 새로 써)\n{ref_content}\n"
+    length_rule = "1,500자 이상" if length_option == "보통" else ("1,000자 내외" if length_option == "짧게" else "2,500자 이상")
+
+    ref_section = f"\n# [참고 자료]\n{ref_content}\n" if ref_content else ""
     
     prompt = f"""
 # 역할
 너는 20년 경력의 '{category}' 현장 전문가야.
-광고성 멘트나 로봇 같은 인사는 집어치우고, **옆집 형/오빠가 말해주듯** 자연스럽게 써.
+사진을 보며 옆에서 설명해주듯 현장감 있게 글을 써야 해.
 
 # 입력 정보
 - 업종: {category}
@@ -73,52 +78,65 @@ def generate_pro_prompt(category, equipment, location, work_detail, urgency, len
 - 작업: {work_detail}
 - 상황: {urgency}
 
+{photo_instructions}
+
 {ref_section}
 
-# ★가장 중요한 도입부(시작) 가이드★
-이번 글의 시작은 무조건 **[{intro_style}]** 방식으로 해.
-**제발 "안녕하세요 OOO입니다" 라고 시작하지 마.** 
-그냥 바로 날씨 얘기나, 현장 상황, 또는 질문으로 훅 치고 들어와.
-
-# 글 전개 및 분량
-1. 구조: **[{pattern}]**
-2. 분량: {length_instruction}
-
-# 말투 및 주의사항
-1. **금지어**: "알아보겠습니다", "살펴보겠습니다", "결론적으로", "소개합니다". (절대 금지)
-2. **말투**: "~했습니다"와 함께 "~했네요", "~더라구요", "~처리했죠"를 섞어서 리듬감 있게.
-3. **전문성**: 감정보다는 '작업의 디테일(부품명, 증상)'을 구체적으로 묘사해.
+# 작성 가이드
+1. **도입부**: **[{intro_style}]** 방식으로 시작해. (식상한 인사 금지)
+2. **글 구조**: **[{pattern}]**
+3. **분량**: {length_rule}
+4. **말투**: "~했습니다"와 "~했네요", "~보이시죠?"를 섞어서 대화하듯이.
 
 # 필수 요소
-- 중간중간 [사진: ~모습] 위치 표시.
 - 글 마지막에만 연락처 강조:
 {contact_info}
 
-위 가이드를 지켜서 작성해.
+위 가이드를 완벽히 소화해서 작성해줘.
     """
     return prompt, intro_style, pattern
 
 # --- UI 레이아웃 ---
-st.title("🗣️ 블로그 AI (자연스러운 도입부 적용)")
+st.title("📸 블로그 AI (사진별 코멘트 기능)")
 
-with st.sidebar:
-    st.header("1. 기본 설정")
-    category = st.text_input("업종 입력", placeholder="예: CCTV 설치, 누수 탐지")
-    length_option = st.select_slider("글 길이", options=["짧게", "보통", "길게"], value="보통")
+col_main_1, col_main_2 = st.columns([1, 1.2])
+
+with col_main_1:
+    st.header("1. 기본/벤치마킹")
+    category = st.text_input("업종", placeholder="예: CCTV 설치")
     contact_info = st.text_area("명함 문구", "문의: 010-XXXX-XXXX", height=70)
-    
-    st.divider()
-    st.header("2. 벤치마킹 URL")
-    ref_urls = st.text_area("참고할 블로그 주소 (줄바꿈)", height=100)
-    
-    st.divider()
-    st.header("3. 현장 팩트")
+    ref_urls = st.text_area("참고 URL (줄바꿈)", height=70)
+
+    st.header("2. 현장 팩트")
     equipment = st.text_input("장비명", placeholder="예: 캐논 3826")
     location = st.text_input("장소", placeholder="예: 학원 3층")
-    work_detail = st.text_area("작업내용", placeholder="예: 급지 롤러 교체", height=100)
-    urgency = st.radio("상황", ["긴급", "난이도 상", "신규", "점검"])
+    urgency = st.radio("상황", ["긴급", "난이도 상", "신규", "점검"], horizontal=True)
+    length_option = st.select_slider("길이", options=["짧게", "보통", "길게"], value="보통")
+
+with col_main_2:
+    st.header("3. 작업 내용 & 사진 설명")
+    work_detail = st.text_area("전체 작업 내용", placeholder="예: 급지 롤러 교체, 선정리 완료", height=100)
     
-    generate_btn = st.button("📝 프롬프트 생성", type="primary")
+    st.markdown("---")
+    st.subheader("🖼️ 사진 업로드 & 설명 (핵심 기능)")
+    st.info("GPT에게 보여줄 사진을 올리고, **'이 사진은 어떤 장면인지'** 적어주세요.")
+    
+    # 파일 업로더
+    uploaded_files = st.file_uploader("사진 선택 (여러 장 가능)", accept_multiple_files=True, type=['png', 'jpg', 'jpeg'])
+    
+    photo_data = []
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            # 사진 미리보기와 입력창을 나란히 배치
+            p_col1, p_col2 = st.columns([1, 2])
+            with p_col1:
+                st.image(uploaded_file, width=100)
+            with p_col2:
+                desc = st.text_input(f"👆 '{uploaded_file.name}' 설명", placeholder="예: 녹슨 기어 확대샷, 먼지 낀 필터")
+                if desc:
+                    photo_data.append({"name": uploaded_file.name, "desc": desc})
+
+    generate_btn = st.button("📝 프롬프트 생성 (사진 지시사항 포함)", type="primary", use_container_width=True)
 
 if generate_btn:
     if not category or not work_detail:
@@ -126,13 +144,24 @@ if generate_btn:
     else:
         ref_content = scrape_naver_blogs(ref_urls) if ref_urls else ""
         
-        final_prompt, intro, pattern = generate_pro_prompt(category, equipment, location, work_detail, urgency, length_option, contact_info, ref_content)
+        # 사진 지시사항 생성
+        photo_instructions = generate_photo_instructions(photo_data)
         
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            st.success("✅ 도입부 스타일 적용됨")
-            st.info(f"**도입부 전략:**\n{intro}")
-            st.warning(f"**전개 방식:**\n{pattern}")
-        with col2:
+        final_prompt, intro, pattern = generate_pro_prompt(category, equipment, location, work_detail, urgency, length_option, contact_info, ref_content, photo_instructions)
+        
+        st.divider()
+        st.success("✅ 사진 설명이 포함된 프롬프트가 생성되었습니다!")
+        
+        res_col1, res_col2 = st.columns([1, 2])
+        with res_col1:
+            st.info(f"**도입부:** {intro}")
+            st.warning(f"**전개:** {pattern}")
+            if photo_data:
+                st.markdown("### 📸 입력된 사진 정보")
+                for p in photo_data:
+                    st.write(f"- {p['desc']}")
+                    
+        with res_col2:
             st.subheader("🤖 GPT 입력용 프롬프트")
             st.code(final_prompt, language="text")
+            st.markdown("👉 **팁:** 이 프롬프트를 GPT에 붙여넣고, **위에서 올린 사진들도 같이 드래그해서 GPT에게 주세요.**")
